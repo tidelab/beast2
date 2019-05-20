@@ -9,3 +9,5 @@
 
 # OS X ignores
 .DS_Store
+beast2.ipr
+beast2.iws
