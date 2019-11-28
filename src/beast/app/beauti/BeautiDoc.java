@@ -14,6 +14,7 @@ import java.io.PrintStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,6 +42,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import beast.app.beastapp.BeastLauncher;
 import beast.app.draw.BEASTObjectPanel;
 import beast.app.draw.InputEditor;
 import beast.app.draw.InputEditorFactory;
@@ -85,10 +87,10 @@ import beast.util.XMLProducer;
 public class BeautiDoc extends BEASTObject implements RequiredInputProvider {
     final static String STANDARD_TEMPLATE = "templates/Standard.xml";
 
-    final static int ALIGNMENT_PARTITION = 3;
-    final static int SITEMODEL_PARTITION = 0;
-    final static int CLOCKMODEL_PARTITION = 1;
-    final static int TREEMODEL_PARTITION = 2;
+    final public static int ALIGNMENT_PARTITION = 3;
+    final public static int SITEMODEL_PARTITION = 0;
+    final public static int CLOCKMODEL_PARTITION = 1;
+    final public static int TREEMODEL_PARTITION = 2;
 
     public enum ActionOnExit {
         UNKNOWN, SHOW_DETAILS_USE_TEMPLATE, SHOW_DETAILS_USE_XML_SPEC, WRITE_XML, MERGE_AND_WRITE_XML
@@ -485,7 +487,14 @@ public class BeautiDoc extends BEASTObject implements RequiredInputProvider {
         // first gather the set of potential directories with templates
         Set<String> dirs = new HashSet<>();
         String pathSep = System.getProperty("path.separator");
-        String classpath = System.getProperty("java.class.path");
+        String classpath = "";
+		try {
+			classpath = BeastLauncher.getPath(false, null);
+			classpath = classpath.substring(1, classpath.length()-1);
+		} catch (NoSuchMethodException | SecurityException | ClassNotFoundException | IllegalAccessException
+				| IllegalArgumentException | InvocationTargetException e1) {
+			e1.printStackTrace();
+		}//System.getProperty("java.class.path");
         String fileSep = System.getProperty("file.separator");
         if (fileSep.equals("\\")) {
             fileSep = "\\\\";
@@ -755,7 +764,7 @@ public class BeautiDoc extends BEASTObject implements RequiredInputProvider {
 //			}
 //		}
         String xml = new XMLProducer().toXML(mcmc.get(), beastObjects);
-
+        
         xml = xml.replaceFirst("<beast ", "<beast beautitemplate='" + templateName + "' beautistatus='" + getBeautiStatus() + "' ");
         return xml + "\n";
     }
@@ -1190,7 +1199,12 @@ public class BeautiDoc extends BEASTObject implements RequiredInputProvider {
             // collectTreePriors();
 
             Log.warning.println("PARTITIONS:\n");
-            Log.warning.println(Arrays.toString(currentPartitions));
+            if (currentPartitions[0].size() < 25) {
+            	Log.warning.println(Arrays.toString(currentPartitions));
+            } else {
+            	Log.warning.println(currentPartitions[0].size() + " partitions");
+            	Log.debug.println(Arrays.toString(currentPartitions));
+            }
 
             determineLinks();
         } catch (Exception e) {
@@ -2401,6 +2415,9 @@ public class BeautiDoc extends BEASTObject implements RequiredInputProvider {
     }
 
     public JFrame getFrame() {
+    	if (beauti == null) {
+    		return null;
+    	}
         return beauti.frame;
     }
 
@@ -2411,7 +2428,7 @@ public class BeautiDoc extends BEASTObject implements RequiredInputProvider {
     /** create taxonset, one taxon for each sequence in the alignment
      * and assign taxonset to the alignment
      * **/
-    static void createTaxonSet(Alignment a, BeautiDoc doc) {
+    static public void createTaxonSet(Alignment a, BeautiDoc doc) {
         List<String> taxaNames = a.getTaxaNames();
         TaxonSet taxonset = new TaxonSet();
         for (final String taxaName : taxaNames) {

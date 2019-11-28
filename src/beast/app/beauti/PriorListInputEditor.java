@@ -36,6 +36,7 @@ import beast.evolution.tree.TreeInterface;
 import beast.math.distributions.MRCAPrior;
 import beast.math.distributions.OneOnX;
 import beast.math.distributions.Prior;
+import beast.util.BEASTClassLoader;
 import beast.util.PackageManager;
 
 
@@ -168,7 +169,7 @@ public class PriorListInputEditor extends ListInputEditor {
                 "," + (upper == null ? "\u221E" : upper + "") + "]";
     }
 
-    Set<Taxon> getTaxonCandidates(MRCAPrior prior) {
+    protected Set<Taxon> getTaxonCandidates(MRCAPrior prior) {
         Set<Taxon> candidates = new HashSet<>();
         Tree tree = prior.treeInput.get();
         String [] taxa = null;
@@ -229,7 +230,7 @@ public class PriorListInputEditor extends ListInputEditor {
         for (String _class: importerClasses) {
         	try {
         		if (!_class.startsWith(this.getClass().getName())) {
-        			PriorProvider priorProvider = (PriorProvider) Class.forName(_class).newInstance();
+        			PriorProvider priorProvider = (PriorProvider) BEASTClassLoader.forName(_class).newInstance();
 					priorProviders.add(priorProvider);
         		}
 			} catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
@@ -277,7 +278,7 @@ public class PriorListInputEditor extends ListInputEditor {
         return selectedPlugins;
     }
     
-    class MRCAPriorProvider implements PriorProvider {
+    public class MRCAPriorProvider implements PriorProvider {
     	@Override
     	public List<Distribution> createDistribution(BeautiDoc doc) {
 	    	MRCAPrior prior = new MRCAPrior();

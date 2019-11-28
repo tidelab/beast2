@@ -36,6 +36,7 @@ import beast.core.Input;
 import beast.core.Input.Validate;
 import beast.evolution.datatype.DataType;
 import beast.evolution.tree.Node;
+import beast.util.BEASTClassLoader;
 
 
 
@@ -90,7 +91,7 @@ public class GeneralSubstitutionModel extends SubstitutionModel.Base {
      * @throws InstantiationException *
      */
     protected EigenSystem createEigenSystem() throws SecurityException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-        Constructor<?>[] ctors = Class.forName(eigenSystemClass.get()).getDeclaredConstructors();
+        Constructor<?>[] ctors = BEASTClassLoader.forName(eigenSystemClass.get()).getDeclaredConstructors();
         Constructor<?> ctor = null;
         for (int i = 0; i < ctors.length; i++) {
             ctor = ctors[i];
@@ -112,8 +113,7 @@ public class GeneralSubstitutionModel extends SubstitutionModel.Base {
     protected boolean updateMatrix = true;
     private boolean storedUpdateMatrix = true;
 
-    @Override
-    public void getTransitionProbabilities(Node node, double startTime, double endTime, double rate, double[] matrix) {
+    public void getTransitionProbabilities(Node node, double startTime, double endTime, double rate, double[] matrix, boolean normalized) {
         double distance = (startTime - endTime) * rate;
 
         int i, j, k;
@@ -124,7 +124,11 @@ public class GeneralSubstitutionModel extends SubstitutionModel.Base {
         synchronized (this) {
             if (updateMatrix) {
                 setupRelativeRates();
-                setupRateMatrix();
+                if (normalized) {
+                    setupRateMatrix();
+                } else {
+                    setupRateMatrixUnnormalized();
+                }
                 eigenDecomposition = eigenSystem.decomposeMatrix(rateMatrix);
                 updateMatrix = false;
             }
@@ -160,6 +164,13 @@ public class GeneralSubstitutionModel extends SubstitutionModel.Base {
                 u++;
             }
         }
+
+    }
+
+    @Override
+    public void getTransitionProbabilities(Node node, double startTime, double endTime, double rate, double[] matrix) {
+        // get transition probabilities for normalized matrix
+        getTransitionProbabilities(node, startTime, endTime, rate, matrix, true);
     } // getTransitionProbabilities
 
     /**
@@ -218,6 +229,10 @@ public class GeneralSubstitutionModel extends SubstitutionModel.Base {
         }
     } // setupRateMatrix
 
+    /**
+     * sets up un-normalized rate matrix *
+     */
+    protected void setupRateMatrixUnnormalized() {}
 
     /**
      * CalculationNode implementation follows *

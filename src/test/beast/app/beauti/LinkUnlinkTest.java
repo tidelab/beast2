@@ -3,17 +3,21 @@ package test.beast.app.beauti;
 
 
 
+import static org.fest.swing.edt.GuiActionRunner.execute;
+
 import java.io.File;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
 import org.fest.assertions.Assertions;
 import org.fest.swing.data.TableCell;
+import org.fest.swing.edt.GuiTask;
 import org.fest.swing.fixture.JComboBoxFixture;
 import org.fest.swing.fixture.JTabbedPaneFixture;
 import org.fest.swing.fixture.JTableFixture;
 import org.junit.Test;
 
+import beast.app.util.Utils;
 import beast.core.BEASTInterface;
 import beast.core.Distribution;
 import beast.core.Function;
@@ -315,7 +319,7 @@ public class LinkUnlinkTest extends BeautiBase {
 		f.selectTab("Site Model");
         JComboBoxFixture substModel = beautiFrame.comboBox("substModel");
         substModel.selectItem("HKY");
-		assertParameterCountInPriorIs(6);		
+		assertParameterCountInPriorIs(7);		
 		
 		f.selectTab("Partitions");
 		warning("Link site models");
@@ -323,10 +327,11 @@ public class LinkUnlinkTest extends BeautiBase {
 		beautiFrame.button("Link Site Models").click();
 		printBeautiState(f);
 
-		assertParameterCountInPriorIs(6);		
+		assertParameterCountInPriorIs(7);		
 		beautiFrame.button("Unlink Site Models").click();
 
-		assertParameterCountInPriorIs(12);		
+		printBeautiState(f);
+		assertParameterCountInPriorIs(15);		
 
 		warning("Delete second partition");
 		f.selectTab("Partitions");
@@ -334,7 +339,7 @@ public class LinkUnlinkTest extends BeautiBase {
 		beautiFrame.button("-").click();
 		printBeautiState(f);
 
-		assertParameterCountInPriorIs(8);		
+		assertParameterCountInPriorIs(10);		
 
 		warning("Delete first partition");
 		f.selectTab("Partitions");
@@ -343,8 +348,8 @@ public class LinkUnlinkTest extends BeautiBase {
 		beautiFrame.table().selectCell(TableCell.row(0).column(1));
 		beautiFrame.button("-").click();
 		printBeautiState(f);
-		assertPriorsEqual("YuleModel.t:26", "YuleBirthRatePrior.t:26", "KappaPrior.s:59");		
-		assertParameterCountInPriorIs(4);
+		assertPriorsEqual("YuleModel.t:26", "YuleBirthRatePrior.t:26", "KappaPrior.s:59", "FrequenciesPrior.s:59");		
+		assertParameterCountInPriorIs(5);
 		
 		makeSureXMLParses();
 	}
@@ -527,7 +532,21 @@ public class LinkUnlinkTest extends BeautiBase {
 	@Test // issue #413
 	public void starBeastLinkTreesAndDeleteTest() throws Exception {
 		warning("Select StarBeast template");
-		beautiFrame.menuItemWithPath("File", "Template", "StarBeast").click();
+		if (!Utils.isMac()) {
+			beautiFrame.menuItemWithPath("File", "Template", "StarBeast").click();
+		} else {
+			execute(new GuiTask() {
+		        @Override
+				protected void executeInEDT() {
+		        	try {
+		    			beauti.doc.loadNewTemplate("templates/StarBeast.xml");
+		    			beauti.refreshPanel();
+		        	} catch (Exception e) {
+						e.printStackTrace();
+					}
+		        }
+		    });
+		}
 
 		warning("Load gopher data 26.nex, 47.nex");
 		importAlignment("examples/nexus", new File("26.nex"), new File("47.nex"));

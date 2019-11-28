@@ -36,6 +36,7 @@ import beast.evolution.likelihood.GenericTreeLikelihood;
 import beast.evolution.sitemodel.SiteModel;
 import beast.evolution.sitemodel.SiteModelInterface.Base;
 import beast.evolution.substitutionmodel.SubstitutionModel;
+import beast.util.BEASTClassLoader;
 import beast.util.XMLParser;
 
 
@@ -73,7 +74,7 @@ public class BeautiSubTemplate extends BEASTObject {
     @Override
     public void initAndValidate() {
     	try {
-        _class = Class.forName(classInput.get());
+        _class = BEASTClassLoader.forName(classInput.get());
         shortClassName = classInput.get().substring(classInput.get().lastIndexOf('.') + 1);
         instance = _class.newInstance();
         xml = xMLInput.get();//.m_sValue.get();
@@ -372,7 +373,7 @@ public class BeautiSubTemplate extends BEASTObject {
             for (BEASTInterface beastObject : beastObjects) {
                 doc.addPlugin(beastObject);
                 try {
-                	Log.warning.println("Adding " + beastObject.getClass().getName() + " " + beastObject);
+                	Log.debug.println("Adding " + beastObject.getClass().getName() + " " + beastObject);
                 } catch (Exception e) {
                 	Log.err.println("Adding " + beastObject.getClass().getName());
 				}
@@ -384,7 +385,7 @@ public class BeautiSubTemplate extends BEASTObject {
                 }
                 //System.out.println(connector.sourceID + " == " + connector.targetID);
                 if (connector.targetID != null && connector.targetID.equals("prior")) {
-                	Log.warning.println(">>> No description for connector " + connector.sourceID + " == " + connector.targetID);
+                	Log.debug.println(">>> No description for connector " + connector.sourceID + " == " + connector.targetID);
                 }
                 if (connector.getTipText() != null) {
                 	String ID = BeautiDoc.translatePartitionNames(connector.sourceID, context);

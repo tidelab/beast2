@@ -382,11 +382,13 @@ public class Logger extends BEASTObject {
                         	// we are using the BEAST console, so no input is possible
                         	throw new IllegalArgumentException();
 						}
-                        Log.info.println("Overwrite (Y/N)?:");
+                        Log.info.println("Overwrite (Y=yes/N=no/A=overwrite all)?:");
                         Log.info.flush();
                         final BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));	                        
                         final String msg = stdin.readLine();
-                        if (!msg.toLowerCase().equals("y")) {
+                        if (msg.toLowerCase().equals("a")) {
+                        	FILE_MODE = LogFileMode.overwrite;
+                        } else if (!msg.toLowerCase().equals("y")) {
                         	Log.info.println("Exiting now.");
                             System.exit(0);
                         }
@@ -636,6 +638,12 @@ public class Logger extends BEASTObject {
     	PrintStream m_out_alt = new PrintStream(m_out);
     	return m_out_alt;
     }
+    
+    // Returns the file name
+    public String getFileName() {
+    	return fileName;
+    }
+    
 
 
 } // class Logger

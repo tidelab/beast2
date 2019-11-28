@@ -3,6 +3,7 @@ package beast.evolution.tree;
 import beast.core.*;
 import beast.core.util.Log;
 import beast.evolution.alignment.TaxonSet;
+import beast.util.BEASTClassLoader;
 import beast.util.TreeParser;
 
 import java.io.PrintStream;
@@ -23,6 +24,8 @@ public class Tree extends StateNode implements TreeInterface {
             "set of taxa that correspond to the leafs in the tree");
     final public Input<String> nodeTypeInput = new Input<>("nodetype",
             "type of the nodes in the beast.tree", Node.class.getName());
+
+    final public Input<Boolean> adjustTreeNodeHeightsInput = new Input<>("adjustTreeNodeHeights", "if true (default), then tree node heights are adjusted to avoid non-positive branch lengths. If you want to maintain zero branch lengths then you must set this to false.", true, Input.Validate.OPTIONAL);
 
     /**
      * state of dirtiness of a node in the tree
@@ -108,7 +111,9 @@ public class Tree extends StateNode implements TreeInterface {
         String [] taxa = getTaxaNames();
         for (int i = 0; i < getNodeCount() && i < taxa.length; i++) {
             if( taxa[i] != null ) {
-                if( m_nodes[i].getID() == null ) {
+            	if (m_nodes[i] == null) {
+            		Log.warning("WARNING: Expected a node for taxon " + taxa[i] + " but did not find one in the expected location in the m_nodes array");
+            	} else if( m_nodes[i].getID() == null ) {
                     m_nodes[i].setID(taxa[i]);
                 }
             }
@@ -173,7 +178,7 @@ public class Tree extends StateNode implements TreeInterface {
      */
     protected Node newNode() {
         try {
-            return (Node) Class.forName(nodeTypeInput.get()).newInstance();
+            return (Node) BEASTClassLoader.forName(nodeTypeInput.get()).newInstance();
         } catch (Exception e) {
             throw new RuntimeException("Cannot create node of type "
                     + nodeTypeInput.get() + ": " + e.getMessage());
@@ -223,7 +228,7 @@ public class Tree extends StateNode implements TreeInterface {
     final static double EPSILON = 0.0000001;
 
     protected void adjustTreeNodeHeights(final Node node) {
-        if (!node.isLeaf()) {
+        if (!node.isLeaf() && adjustTreeNodeHeightsInput.get()) {
             for (final Node child : node.getChildren()) {
                 adjustTreeNodeHeights(child);
             }
@@ -678,7 +683,17 @@ public class Tree extends StateNode implements TreeInterface {
     static void printTranslate(Node node, List<String> translateLines, int nodeCount) {
         if (node.isLeaf()) {
             final String nr = (node.getNr() + taxaTranslationOffset) + "";
-            String line = "\t\t" + "    ".substring(nr.length()) + nr + " " + node.getID();
+            String line = "\t\t" + "    ".substring(nr.length()) + nr + " ";
+            if (node.getID().indexOf(' ') > 0) {
+            	char c = node.getID().charAt(0);
+            	if (c == '\"' || c == '\'') {
+                	line += node.getID();
+            	} else {
+            		line += '\"' + node.getID() + "\"";
+            	}
+            } else {
+            	line += node.getID();
+            }
             if (node.getNr() < nodeCount) {
                 line += ",";
             }
@@ -696,8 +711,8 @@ public class Tree extends StateNode implements TreeInterface {
         printTranslate(node, translateLines, nodeCount);
         Collections.sort(translateLines);
         for (String line : translateLines) {
-            line = line.split("\\s+")[2];
-            out.println("\t\t\t" + line.replace(',', ' '));
+            line = line.substring(line.indexOf(" ", 5)).replace(',', ' ').trim();
+            out.println("\t\t\t" + line);
         }
     }
 

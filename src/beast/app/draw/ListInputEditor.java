@@ -27,6 +27,7 @@ import beast.app.beauti.BeautiDoc;
 import beast.core.BEASTInterface;
 import beast.core.Input;
 import beast.core.util.Log;
+import beast.util.BEASTClassLoader;
 
 public class ListInputEditor extends InputEditor.Base {
 
@@ -36,9 +37,9 @@ public class ListInputEditor extends InputEditor.Base {
 
     {
         try {
-            java.net.URL downURL = ClassLoader.getSystemResource(ModelBuilder.ICONPATH + "down.png");
+            java.net.URL downURL = BEASTClassLoader.classLoader.getResource(ModelBuilder.ICONPATH + "down.png");
             DOWN_ICON = ImageIO.read(downURL); 
-            java.net.URL leftURL = ClassLoader.getSystemResource(ModelBuilder.ICONPATH + "right.png");
+            java.net.URL leftURL = BEASTClassLoader.classLoader.getResource(ModelBuilder.ICONPATH + "right.png");
             RIGHT_ICON = ImageIO.read(leftURL);
         } catch (Exception e) {
             e.printStackTrace();
@@ -443,7 +444,7 @@ public class ListInputEditor extends InputEditor.Base {
         }
         /* create new beastObject */
         try {
-            BEASTInterface beastObject = (BEASTInterface) Class.forName(className.substring(4)).newInstance();
+            BEASTInterface beastObject = (BEASTInterface) BEASTClassLoader.forName(className.substring(4)).newInstance();
             BEASTObjectPanel.addPluginToMap(beastObject, doc);
             selectedPlugins.add(beastObject);
             return selectedPlugins;

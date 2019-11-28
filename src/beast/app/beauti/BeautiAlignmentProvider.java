@@ -39,6 +39,7 @@ import beast.evolution.alignment.Sequence;
 import beast.evolution.datatype.DataType;
 import beast.math.distributions.MRCAPrior;
 import beast.util.PackageManager;
+import beast.util.BEASTClassLoader;
 import beast.util.NexusParser;
 import beast.util.XMLParser;
 
@@ -64,7 +65,7 @@ public class BeautiAlignmentProvider extends BEASTObject {
         for (String _class: importerClasses) {
         	try {
         		if (!_class.startsWith(this.getClass().getName())) {
-					AlignmentImporter importer = (AlignmentImporter) Class.forName(_class).newInstance();
+					AlignmentImporter importer = (AlignmentImporter) BEASTClassLoader.forName(_class).newInstance();
 					importers.add(importer);
         		}
 			} catch (InstantiationException | IllegalAccessException | ClassNotFoundException e) {
@@ -92,7 +93,7 @@ public class BeautiAlignmentProvider extends BEASTObject {
 	/** 
 	 * return new alignment, return null if not successful 
 	 * **/
-	protected List<BEASTInterface> getAlignments(BeautiDoc doc) {
+	public List<BEASTInterface> getAlignments(BeautiDoc doc) {
 		if (importers == null) {
 			initImporters();
 		}
@@ -105,6 +106,8 @@ public class BeautiAlignmentProvider extends BEASTObject {
         File [] files = beast.app.util.Utils.getLoadFiles("Load Alignment File",
                 new File(Beauti.g_sDir), "Alignment files", extensions.toArray(new String[]{}));
         if (files != null && files.length > 0) {
+        	Beauti.setCurrentDir(files[0].getPath().substring(0,
+        			files[0].getPath().lastIndexOf(File.separator)));
             return getAlignments(doc, files);
         }
 		return null;

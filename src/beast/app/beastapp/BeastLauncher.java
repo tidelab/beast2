@@ -3,6 +3,7 @@ package beast.app.beastapp;
 import beast.app.BEASTVersion;
 import beast.app.util.Utils6;
 import beast.core.util.Log;
+import beast.util.BEASTClassLoader;
 import beast.util.Package;
 import beast.util.PackageManager;
 import beast.util.PackageVersion;
@@ -13,6 +14,7 @@ import javax.swing.*;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.util.*;
@@ -301,6 +303,11 @@ public class BeastLauncher {
 		return version;
 	}
 
+	/**
+	 * @param useStrictVersions
+	 * @param beastFile
+	 * @return Class path string for main BEAST process, enclosed in literal quotes.
+	 */
 	public static String getPath(boolean useStrictVersions, String beastFile) throws NoSuchMethodException, SecurityException, ClassNotFoundException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, IOException {
 		installBEASTPackage();
 		PackageManager.initialise();
@@ -540,135 +547,35 @@ public class BeastLauncher {
 
 	public static void run(String classPath, String main, String[] args) {
 		try {
-            List<String> cmd = new ArrayList<String>();
 
-            if (Utils6.isMac()) {
-            	// check whether a bundled jre is present
-            	BeastLauncher clu = new BeastLauncher();
-            	String launcherJar = clu.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();            	
-            	String jreDir = URLDecoder.decode(new File(launcherJar).getParent(), "UTF-8") + "/../jre1.8.0_161/";
-            	            	
-            	if (new File(jreDir).exists()) {
-	                cmd.add(jreDir + "bin/java");
-            	}
+	        for (int i = 0; i < args.length; i++) {
+	        	String arg = args[i];
+	        	if (arg.startsWith("-Xmx") ||
+	        		arg.startsWith("-Xms") ||
+	        	    arg.startsWith("-Xss")) {
+	        		// warn BEAST v2.5.x users that memory/stack allocation uses a different mechanism now
+	        		Log.warning("WARNING: the -Xmx, -Xms and -Xss arguments will be ignored for setting memory/stack space");
+	        		Log.warning("WARNING: If you want to use any of these arguments you must either change the script, or");
+	        		Log.warning("WARNING: call `java -Xmx16g -cp /path/to/launcher.jar " + main + " arg1 arg2 ...` instead");
+	        		Log.warning("WARNING: where `/path/to/` is replaced by the path to where the launcher.jar file is, and");
+	        		Log.warning("WARNING: arg1 the first argument, arg2, the second, etc.");
+	        	}
+	        }            
+           
+			for (String jarFile : classPath.substring(1, classPath.length() - 1).split(File.pathSeparator)) {
+				if (jarFile.toLowerCase().endsWith("jar")) {
+					BEASTClassLoader.classLoader.addJar(jarFile);
+				}
 			}
+		
+			Class<?> mainClass = BEASTClassLoader.forName(main);
+			Method mainMethod = mainClass.getMethod("main", String [].class);
+			mainMethod.invoke(null, (Object) args);
 
-            if (cmd.size() == 0) {
-	            if (System.getenv("JAVA_HOME") != null) {
-	                cmd.add(System.getenv("JAVA_HOME") + File.separatorChar
-	                        + "bin" + File.separatorChar + "java");
-	            } else
-	                cmd.add("java");
-            }
-
-            setJavaHeapAndStackSize(cmd, args);
-
-            if (System.getProperty("java.library.path") != null && System.getProperty("java.library.path").length() > 0) {
-            	cmd.add("-Djava.library.path=" + sanitise(System.getProperty("java.library.path")));
-            }            
-            
-            cmd.add("-cp");
-            cmd.add(classPath.substring(1, classPath.length() - 1));
-            cmd.add(main);
-
-            for (String arg : args) {
-            	if (arg != null) {
-            		cmd.add(arg);
-            	}
-            }
-
-            final ProcessBuilder pb = new ProcessBuilder(cmd);
-
-            Map<String, String> environment = pb.environment();
-            System.err.println(pb.command());
-
-            //File log = new File("log");
-            pb.redirectErrorStream(true);
-            
-            // Start the process and wait for it to finish.
-            final Process process = pb.start();
-
-            Thread inputThread = null;
-            boolean waitToExit = System.getProperty("launcher.wait.for.exit") != null; 
-            if (main.equals("beast.app.beastapp.BeastMain") && waitToExit) {
-            	inputThread = new Thread() {
-	            	public void run() {
-	                    OutputStream out = process.getOutputStream();
-	                    byte [] buf = new byte[2048];
-	            		while (true) {
-	            			try {
-			                    int ni = System.in.available();
-			                    if (ni > 0) {
-			                      int c = System.in.read(buf, 0, Math.min(ni, buf.length));
-			                      System.err.print((char) c);
-			                      out.write(buf, 0, c);
-			                      out.flush();
-			                    }	 
-	            			} catch (IOException e) {
-	            				e.printStackTrace();
-	            			}
-	                		try {
-								Thread.sleep(1000);
-							} catch (InterruptedException e) {
-								e.printStackTrace();
-							}
-	             		}
-	            	}
-	            };
-	            inputThread.start();
-            }
-
-            if (waitToExit) {
-	            int c;
-	            BufferedReader input = new BufferedReader(new InputStreamReader(process.getInputStream()));
-	            while ((c = input.read()) != -1) {
-	                System.out.print((char)c);
-	            }
-	            input.close();
-	
-	            final int exitStatus = process.waitFor();
-	            if (exitStatus != 0) {
-	            	System.err.println(process.getErrorStream());
-	            }
-	            if (main.equals("beast.app.beastapp.BeastMain")) {
-	            	inputThread.stop();
-	            }
-            }
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-    }
-
-	private static void setJavaHeapAndStackSize(List<String> cmd, String[] args) {
-        boolean heapSizeSet = false;
-        boolean stackSizeSet = false;
-        
-        // see if we have a cmd line argument for heap or stack size
-        for (int i = 0; i < args.length; i++) {
-        	String arg = args[i];
-        	if (arg.startsWith("-Xmx")) {
-        		cmd.add(arg);
-        		args[i] = null;
-        		heapSizeSet = true;
-        	} else if (arg.startsWith("-Xms")) {
-        		cmd.add(arg);
-        		args[i] = null;
-        		stackSizeSet = true;
-        	} else if (arg.startsWith("-Xss")) {
-        		cmd.add(arg);
-        		args[i] = null;
-        		stackSizeSet = true;
-        	}
-        }            
-
-        // force default values if nothing is specified
-        if (!heapSizeSet) {
-        	cmd.add("-Xms8g");
-        }
-        if (!stackSizeSet) {
-        	cmd.add("-Xms256m");
-        }
-    }
+    }	
 	
 }

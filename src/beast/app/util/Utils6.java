@@ -2,6 +2,7 @@ package beast.app.util;
 
 import beast.app.BEASTVersion;
 import beast.core.util.Log;
+import beast.util.BEASTClassLoader;
 
 import javax.swing.*;
 import java.awt.*;
@@ -161,7 +162,7 @@ public class Utils6 {
 
 	public static ImageIcon getIcon(String iconLocation) {
 	    try {
-	        URL url = ClassLoader.getSystemResource(iconLocation);
+	        URL url = BEASTClassLoader.classLoader.getResource(iconLocation);
 	        if (url == null) {
 	        	Log.warning.println("Cannot find icon " + iconLocation);
 	            return null;
@@ -229,7 +230,7 @@ public class Utils6 {
 				      }
 				      //beastJar = "\"" + beastJar + "\"";
 				      //beastJar = "/Users/remco/workspace/beast2/build/dist/beast.jar";
-				      Process p = Runtime.getRuntime().exec(new String[]{java , "-cp" , beastJar , "beast.app.util.Utils"});
+				      Process p = Runtime.getRuntime().exec(new String[]{java , "-Dbeast.user.package.dir=/NONE", "-cp" , beastJar , "beast.app.util.Utils"});
 				      BufferedReader input = new BufferedReader(new InputStreamReader(p.getInputStream()));
 			          int c;
 			          while ((c = input.read()) != -1) {

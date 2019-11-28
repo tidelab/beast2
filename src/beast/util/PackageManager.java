@@ -60,7 +60,6 @@ import java.nio.channels.ReadableByteChannel;
 import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.util.jar.JarInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
@@ -77,6 +76,9 @@ import java.util.zip.ZipFile;
 // TODO: on windows allow installation on drive D: and pick up add-ons in drive C:
 //@Description("Manage all BEAUti packages and list their dependencies")
 public class PackageManager {
+	
+
+	
     public static final BEASTVersion beastVersion = BEASTVersion.INSTANCE;
 
     public enum UpdateStatus {AUTO_CHECK_AND_ASK, AUTO_UPDATE, DO_NOT_CHECK};
@@ -86,7 +88,7 @@ public class PackageManager {
     public final static String TO_INSTALL_LIST_FILE = "toInstallList";
     public final static String BEAST_PACKAGE_NAME = "BEAST";
 
-    public final static String PACKAGES_XML = "https://raw.githubusercontent.com/CompEvol/CBAN/master/packages2.5.xml";
+    public final static String PACKAGES_XML = "https://raw.githubusercontent.com/CompEvol/CBAN/master/packages2.6.xml";
 //    public final static String PACKAGES_XML = "file:///Users/remco/workspace/beast2/packages.xml";
     public final static String ARCHIVE_DIR = "archive";
     // flag to indicate archive directory and version numbers in directories are required
@@ -481,7 +483,7 @@ public class PackageManager {
             HttpURLConnection huc = (HttpURLConnection) templateURL.openConnection();
             huc.setRequestMethod("HEAD");
             int responseCode = huc.getResponseCode();
-            if (responseCode == HttpURLConnection.HTTP_MOVED_PERM) { 
+            if (responseCode == HttpURLConnection.HTTP_MOVED_PERM || responseCode == HttpURLConnection.HTTP_NOT_FOUND) { 
             	// RRB: should be "if (responseCode != HttpURLConnection.HTTP_OK)"
             	// but package file hosted on github (which are most of them)
             	// produce a HttpURLConnection.HTTP_FORBIDDEN for some reason
@@ -631,15 +633,18 @@ public class PackageManager {
      * 
      */
     private static void closeClassLoader() {
-    	//try {
-    		if (Utils6.isWindows()) {
+    	try {
+    		if (Utils6.isWindows() && Utils6.getMajorJavaVersion() == 8) {
+    			// this class cast exception works on java 8, but not java 9 or above
     			URLClassLoader sysLoader = (URLClassLoader) PackageManager.class.getClassLoader();
-    			// sysLoader.close(); <= only since Java 1.7
-    		}
-		//} catch (IOException e) {
-		//	Log.warning.println("Could not close ClassLoader: " + e.getMessage());
-		//}
-		
+    			// sysLoader.close(); // <= only since Java 1.7, so should be commented out for
+    			// build of launcher.jar with java 6 compatibility 
+    		}		
+    	//} catch (IOException e) {
+        //    Log.warning.println("Could not close ClassLoader: " + e.getMessage());
+        } catch (ClassCastException e) {
+            Log.warning.println("Could not close ClassLoader: " + e.getMessage());
+		}
 	}
 
 	private static void deleteRecursively(File file, List<File> deleteFailed) {
@@ -762,7 +767,7 @@ public class PackageManager {
         
         URL u;
 		try {
-			u = Class.forName("beast.app.beastapp.BeastMain").getProtectionDomain().getCodeSource().getLocation();
+			u = BEASTClassLoader.forName("beast.app.beastapp.BeastMain").getProtectionDomain().getCodeSource().getLocation();
 		} catch (ClassNotFoundException e) {
 			// e.printStackTrace();
 			return null;
@@ -1051,13 +1056,13 @@ public class PackageManager {
         // way with java 8 when the -Dbeast.load.jars=true
         // directive is given. This can be useful for developers
         // but generally slows down application starting.
-        if (Boolean.getBoolean("beast.load.jars") == false || Utils6.getMajorJavaVersion() != 8) {
-            externalJarsLoaded = true;
-        	Utils6.logToSplashScreen("PackageManager::findDataTypes");
-            findDataTypes();
-        	Utils6.logToSplashScreen("PackageManager::Done");
-    		return;
-    	}
+//        if (Boolean.getBoolean("beast.load.jars") == false || Utils6.getMajorJavaVersion() != 8) {
+//            externalJarsLoaded = true;
+//        	Utils6.logToSplashScreen("PackageManager::findDataTypes");
+//            findDataTypes();
+//        	Utils6.logToSplashScreen("PackageManager::Done");
+//    		return;
+//    	}
 
         for (String jarDirName : getBeastDirectories()) {
         	loadPackage(jarDirName);
@@ -1070,7 +1075,7 @@ public class PackageManager {
     
 	private static void findDataTypes() {
 		try {
-			Method findDataTypes = Class.forName("beast.evolution.alignment.Alignment").getMethod("findDataTypes");
+			Method findDataTypes = BEASTClassLoader.forName("beast.evolution.alignment.Alignment").getMethod("findDataTypes");
 			findDataTypes.invoke(null);
 		} catch (Exception e) {
 			// too bad, cannot load data types
@@ -1158,47 +1163,48 @@ public class PackageManager {
             if (jarDir.exists() && jarDir.isDirectory()) {
                 for (String fileName : jarDir.list()) {
                     if (fileName.endsWith(".jar")) {
-                        Log.debug.print("Probing: " + fileName + " ");
-                        // check that we are not reload existing classes
-                        String loadedClass = null;
-                        try {
-                            JarInputStream jarFile = new JarInputStream
-                                    (new FileInputStream(jarDir.getAbsolutePath() + "/" + fileName));
-                            JarEntry jarEntry;
-
-                            while (loadedClass == null) {
-                                jarEntry = jarFile.getNextJarEntry();
-                                if (jarEntry == null) {
-                                    break;
-                                }
-                                if ((jarEntry.getName().endsWith(".class"))) {
-                                    String className = jarEntry.getName().replaceAll("/", "\\.");
-                                    className = className.substring(0, className.lastIndexOf('.'));
-                                    try {
-                                        /*Object o =*/
-                                        Class.forName(className);
-                                        loadedClass = className;
-                                    } catch (Exception e) {
-                                        // TODO: handle exception
-                                    }
-                                    if (loadedClass == null && packageNameAndVersion != null) {
-                                        classToPackageMap.put(className, packageNameAndVersion);
-                                    }
-                                }
-                            }
-                            jarFile.close();
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-
-
-                        @SuppressWarnings("deprecation")
-                        URL url = new File(jarDir.getAbsolutePath() + "/" + fileName).toURL();
-                        if (loadedClass == null) {
+//                        Log.debug.print("Probing: " + fileName + " ");
+//                        // check that we are not reload existing classes
+//                        String loadedClass = null;
+//                        try {
+//                            JarInputStream jarFile = new JarInputStream
+//                                    (new FileInputStream(jarDir.getAbsolutePath() + "/" + fileName));
+//                            JarEntry jarEntry;
+//
+//                            while (loadedClass == null) {
+//                                jarEntry = jarFile.getNextJarEntry();
+//                                if (jarEntry == null) {
+//                                    break;
+//                                }
+//                                if ((jarEntry.getName().endsWith(".class"))) {
+//                                    String className = jarEntry.getName().replaceAll("/", "\\.");
+//                                    className = className.substring(0, className.lastIndexOf('.'));
+//                                    try {
+//                                        /*Object o =*/
+//                                    	BEASTClassLoader.forName(className);
+//                                        loadedClass = className;
+//                                    } catch (Throwable e) {
+//                                        // TODO: handle exception
+//                                    	e.printStackTrace();
+//                                    }
+//                                    if (loadedClass == null && packageNameAndVersion != null) {
+//                                        classToPackageMap.put(className, packageNameAndVersion);
+//                                    }
+//                                }
+//                            }
+//                            jarFile.close();
+//                        } catch (Exception e) {
+//                            e.printStackTrace();
+//                        }
+//
+//
+//                        @SuppressWarnings("deprecation")
+                        URL url = new File(jarDir.getAbsolutePath() + "/" + fileName).toURI().toURL();
+//                        if (loadedClass == null) {
                             addURL(url);
-                        } else {
-                            Log.debug.println("Skip loading " + url + ": contains class " + loadedClass + " that is already loaded");
-                        }
+//                        } else {
+//                            Log.debug.println("Skip loading " + url + ": contains class " + loadedClass + " that is already loaded");
+//                        }
                     }
                 }
             }
@@ -1354,30 +1360,31 @@ public class PackageManager {
      * @throws IOException if something goes wrong when adding a url
      */
     public static void addURL(URL u) throws IOException {
-        // ClassloaderUtil clu = new ClassloaderUtil();
-        PackageManager clu = new PackageManager();
-        // URLClassLoader sysLoader = (URLClassLoader)
-        // ClassLoader.getSystemClassLoader();
-        URLClassLoader sysLoader = (URLClassLoader) clu.getClass().getClassLoader();
-        URL urls[] = sysLoader.getURLs();
-        for (URL url : urls) {
-            if (url.toString().toLowerCase().equals(u.toString().toLowerCase())) {
-                Log.debug.println("URL " + u + " is already in the CLASSPATH");
-                return;
-            }
-        }
-        Class<?> sysclass = URLClassLoader.class;
-        try {
-            // Parameters
-            Class<?>[] parameters = new Class[]{URL.class};
-            Method method = sysclass.getDeclaredMethod("addURL", parameters);
-            method.setAccessible(true);
-            method.invoke(sysLoader, u);
-            Log.debug.println("Loaded URL " + u);
-        } catch (Throwable t) {
-            t.printStackTrace();
-            throw new IOException("Error, could not add URL to system classloader");
-        }
+    	BEASTClassLoader.classLoader.addURL(u);
+//        // ClassloaderUtil clu = new ClassloaderUtil();
+//        PackageManager clu = new PackageManager();
+//        // URLClassLoader sysLoader = (URLClassLoader)
+//        // ClassLoader.getSystemClassLoader();
+//        URLClassLoader sysLoader = (URLClassLoader) clu.getClass().getClassLoader();
+//        URL urls[] = sysLoader.getURLs();
+//        for (URL url : urls) {
+//            if (url.toString().toLowerCase().equals(u.toString().toLowerCase())) {
+//                Log.debug.println("URL " + u + " is already in the CLASSPATH");
+//                return;
+//            }
+//        }
+//        Class<?> sysclass = URLClassLoader.class;
+//        try {
+//            // Parameters
+//            Class<?>[] parameters = new Class[]{URL.class};
+//            Method method = sysclass.getDeclaredMethod("addURL", parameters);
+//            method.setAccessible(true);
+//            method.invoke(sysLoader, u);
+//            Log.debug.println("Loaded URL " + u);
+//        } catch (Throwable t) {
+//            t.printStackTrace();
+//            throw new IOException("Error, could not add URL to system classloader");
+//        }
         String classpath = System.getProperty("java.class.path");
         String jar = u + "";
         classpath += System.getProperty("path.separator") + jar.substring(5);
@@ -1401,6 +1408,7 @@ public class PackageManager {
 
         for (String path : classpath.split(pathSep)) {
             //Log.debug.println("loadallclasses " + path);
+            path = path.replaceAll("%20", " ");
             File filepath = new File(path);
 
             if (filepath.isDirectory()) {
@@ -1556,7 +1564,7 @@ public class PackageManager {
         result = new ArrayList<String>();
 
         try {
-            cls = Class.forName(classname);
+            cls = BEASTClassLoader.forName(classname);
             result = find(cls, pkgnames);
         } catch (Exception e) {
             e.printStackTrace();
@@ -1580,7 +1588,7 @@ public class PackageManager {
         result = new ArrayList<String>();
 
         try {
-            cls = Class.forName(classname);
+            cls = BEASTClassLoader.forName(classname);
             result = find(cls, pkgname);
         } catch (Exception e) {
             e.printStackTrace();
@@ -1653,7 +1661,7 @@ public class PackageManager {
             if (className.startsWith(pkgname)) {
                 //Log.debug.println(className);
                 try {
-                    Class<?> clsNew = Class.forName(className);
+                    Class<?> clsNew = BEASTClassLoader.forName(className);
 
                     // no abstract classes
                     if (!Modifier.isAbstract(clsNew.getModifiers()) &&
@@ -1956,85 +1964,13 @@ public class PackageManager {
 		return buf.toString();
 	}
 
-	/** keep track of which class comes from a particular package.
-     * It maps a full class name onto a package name + " v" + package version
-     * e.g. "bModelTest v0.3.2"
-     */
-    private static Map<String, String> classToPackageMap = new HashMap<String, String>();
-    
-    /**  maps package name to a Package object, which contains info on whether 
+	/**  maps package name to a Package object, which contains info on whether 
      * and which version is installed. This is initialised when loadExternalJars()
      * is called, which happens at the start of BEAST, BEAUti and many utilities.
      */
     private static TreeMap<String, Package> packages = new TreeMap<String, Package>();
    
-    public static Map<String, String> getClassToPackageMap() {
-    	if (classToPackageMap.size() == 0) {
-            for (String jarDirName : getBeastDirectories()) {
-            	initPackageMap(jarDirName);
-            }
-    	}
-    	return classToPackageMap;
-    }
-
-    private static void initPackageMap(String jarDirName) {
-        try {
-            File versionFile = new File(jarDirName + "/version.xml");
-            String packageNameAndVersion = null;
-            if (versionFile.exists()) {
-                try {
-                    // print name and version of package
-                    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                    Document doc = factory.newDocumentBuilder().parse(versionFile);
-                    Element packageElement = doc.getDocumentElement();
-                    packageNameAndVersion = packageElement.getAttribute("name") + " v" + packageElement.getAttribute("version");
-                    Log.warning.println("Loading package " + packageNameAndVersion);
-                    Utils6.logToSplashScreen("Loading package " + packageNameAndVersion);
-                } catch (Exception e) {
-                    // too bad, won't print out any info
-
-                    // File is called version.xml, but is not a Beast2 version file
-                    // Log.debug.print("Skipping "+jarDirName+" (not a Beast2 package)");
-                }
-            }
-            File jarDir = new File(jarDirName + "/lib");
-            if (!jarDir.exists()) {
-                jarDir = new File(jarDirName + "\\lib");
-            }
-            if (jarDir.exists() && jarDir.isDirectory()) {
-                for (String fileName : jarDir.list()) {
-                    if (fileName.endsWith(".jar")) {
-                        Log.debug.print("Probing: " + fileName + " ");
-                        // check that we are not reload existing classes
-                        try {
-                            JarInputStream jarFile = new JarInputStream
-                                    (new FileInputStream(jarDir.getAbsolutePath() + "/" + fileName));
-                            JarEntry jarEntry;
-                            while ((jarEntry = jarFile.getNextJarEntry()) != null) {
-                                if ((jarEntry.getName().endsWith(".class"))) {
-                                    String className = jarEntry.getName().replaceAll("/", "\\.");
-                                    className = className.substring(0, className.lastIndexOf('.'));
-                                    if (packageNameAndVersion != null) {
-                                        classToPackageMap.put(className, packageNameAndVersion);
-                                    }
-                                }
-                            }
-                            jarFile.close();
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // File exists, but cannot open the file for some reason
-            Log.debug.println("Skipping "+jarDirName+"/version.xml (unable to open file");
-            Log.warning.println("Skipping "+jarDirName+"/version.xml (unable to open file");
-        }
-		
-	}
-
-	/** test whether a package with given name and version is available.
+    /** test whether a package with given name and version is available.
      * @param pkgname
      * @param pkgversion ignored for now
      * @return

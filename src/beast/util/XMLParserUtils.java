@@ -357,7 +357,7 @@ public class XMLParserUtils {
 	    			Type type = types[i + offset];
 	    			Class<?> clazz2 = null;
 					try {
-						clazz2 = Class.forName(type.getTypeName());
+						clazz2 = BEASTClassLoader.forName(type.getTypeName());
 					} catch (ClassNotFoundException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -473,6 +473,26 @@ public class XMLParserUtils {
         return p[n];
     }
 
+    public static String resolveClass(String specClass, String [] nameSpaces) {
+		for (String nameSpace : nameSpaces) {
+			if (XMLParserUtils.beastObjectNames.contains(nameSpace + specClass)) {
+				String clazzName = nameSpace + specClass;
+				return clazzName;
+			}
+		}
+		for (String nameSpace : nameSpaces) {
+            try {
+				if (BEASTClassLoader.forName(nameSpace + specClass) != null) {
+					String clazzName = nameSpace + specClass;
+					return clazzName;
+				}
+			} catch (ClassNotFoundException e) {
+				// ignore
+			}
+		}
+		return null;
+	}
+    
 }
 
 

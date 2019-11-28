@@ -433,7 +433,7 @@ public class BeastMCMC {
             String iconLocation = "beast/app/draw/icons/beast.png";
             ImageIcon icon = null;
             try {
-                URL url = ClassLoader.getSystemResource(iconLocation);
+                URL url = BEASTClassLoader.classLoader.getResource(iconLocation);
                 if (url == null) {
                     System.err.println("Cannot find icon " + iconLocation);
                     return null;
@@ -479,8 +479,8 @@ public class BeastMCMC {
                     int rval = fileChooser.showOpenDialog(null);
                     if (rval == JFileChooser.APPROVE_OPTION) {
                         String fileName = fileChooser.getSelectedFile().toString();
-                        if (fileName.lastIndexOf('/') > 0) {
-                            Beauti.g_sDir = fileName.substring(0, fileName.lastIndexOf('/'));
+                        if (fileName.lastIndexOf(File.separator) > 0) {
+                            Beauti.setCurrentDir(fileName.substring(0, fileName.lastIndexOf(File.separator)));
                         }
                         m_fileEntry.setText(fileName);
                     }
